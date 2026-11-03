@@ -1,0 +1,134 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  OWNER
+  SECURITY
+  ADMIN
+}
+
+enum ScanStatus {
+  SUCCESS
+  FAILED
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  fullName     String   @map("full_name") @db.VarChar(150)
+  email        String   @unique @db.VarChar(150)
+  passwordHash String   @map("password_hash") @db.Text
+  role         UserRole
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  houses          House[]
+  createdTokens   VisitToken[]     @relation("VisitTokenCreatedBy")
+  scannedLogs     EntryLog[]       @relation("EntryLogScannedBy")
+  aiConversations AiConversation[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model House {
+  id          String   @id @default(uuid()) @db.Uuid
+  houseNumber String   @map("house_number") @db.VarChar(20)
+  ownerId     String   @map("owner_id") @db.Uuid
+  block       String?  @db.VarChar(50)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relations
+  owner       User         @relation(fields: [ownerId], references: [id])
+  visitTokens VisitToken[]
+
+  @@unique([houseNumber, block])
+  @@index([ownerId])
+  @@map("houses")
+}
+
+model Visitor {
+  id        String   @id @default(uuid()) @db.Uuid
+  cnic      String   @unique @db.VarChar(15)
+  fullName  String   @map("full_name") @db.VarChar(150)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  visitTokens VisitToken[]
+
+  @@index([cnic])
+  @@map("visitors")
+}
+
+model VisitToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  tokenCode String    @unique @map("token_code") @db.VarChar(96)
+  visitorId String    @map("visitor_id") @db.Uuid
+  houseId   String    @map("house_id") @db.Uuid
+  carNumber String    @map("car_number") @db.VarChar(30)
+  expiresAt DateTime  @map("expires_at") @db.Timestamp(6)
+  isUsed    Boolean   @default(false) @map("is_used")
+  isActive  Boolean   @default(true) @map("is_active")
+  revokedAt DateTime? @map("revoked_at") @db.Timestamp(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  visitor   Visitor    @relation(fields: [visitorId], references: [id])
+  house     House      @relation(fields: [houseId], references: [id])
+  creator   User?      @relation("VisitTokenCreatedBy", fields: [createdBy], references: [id])
+  entryLogs EntryLog[]
+
+  @@index([tokenCode])
+  @@index([expiresAt])
+  @@index([houseId])
+  @@index([createdBy])
+  @@map("visit_tokens")
+}
+
+model EntryLog {
+  id            String     @id @default(uuid()) @db.Uuid
+  tokenId       String?    @map("token_id") @db.Uuid
+  scanStatus    ScanStatus @map("scan_status")
+  failureReason String?    @map("failure_reason") @db.Text
+  scannedBy     String     @map("scanned_by") @db.Uuid
+  scannedAt     DateTime   @default(now()) @map("scanned_at") @db.Timestamp(6)
+
+  token   VisitToken? @relation(fields: [tokenId], references: [id])
+  scanner User        @relation("EntryLogScannedBy", fields: [scannedBy], references: [id])
+
+  @@index([tokenId])
+  @@index([scannedAt])
+  @@index([scannedBy])
+  @@map("entry_logs")
+}
+
+model AiConversation {
+  id            String  @id @default(uuid()) @db.Uuid
+  ownerId       String  @map("owner_id") @db.Uuid
+  collectedData Json    @default("{}")
+  missingFields Json    @default("[]")
+  userMessage   String? @map("user_message") @db.Text
+  aiResponse    Json?   @map("ai_response")
+  intent        String? @db.VarChar(40)
+  action        String? @db.VarChar(40)
+  contextData   Json?   @map("context_data")
+  status        String  @default("IN_PROGRESS")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner User @relation(fields: [ownerId], references: [id])
+
+  @@index([ownerId])
+  @@map("ai_conversations")
+}
