@@ -1,0 +1,10 @@
+{
+  "name": "society-gate-pass",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "deps": "docker compose up -d postgres",
+    "deps:down": "docker compose down",
+    "deps:logs": "docker compose logs -f postgres"
+  }
+}
