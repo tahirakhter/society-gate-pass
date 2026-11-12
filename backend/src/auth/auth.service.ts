@@ -6,6 +6,7 @@ import { StringValue } from 'ms';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/auth.dto';
+import { getJwtSecret } from './jwt-secret';
 import {
   JwtPayload,
   AuthResponse,
@@ -155,9 +156,7 @@ export class AuthService {
   }
 
   private get jwtSecret(): string {
-    return (
-      this.configService.get<string>('JWT_SECRET') || 'development-only-secret'
-    );
+    return getJwtSecret(this.configService);
   }
 
   private get accessTokenExpiry(): StringValue {

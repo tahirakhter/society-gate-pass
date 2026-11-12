@@ -37,7 +37,6 @@ export function ManualPassDialog({
 
     await onCreatePass({
       name: String(formData.get("name") || ""),
-      time: String(formData.get("time") || ""),
       cnic: String(formData.get("cnic") || ""),
       carNumber: String(formData.get("carNumber") || ""),
       houseId: String(formData.get("houseId") || ""),
@@ -90,7 +89,6 @@ export function ManualPassDialog({
               {houses.map((house) => <option key={house.id} value={house.id}>{house.houseNumber}{house.block ? ` • Block ${house.block}` : ""}</option>)}
             </select>
           </Field>
-          <Field label="Notes" optional><textarea name="time" rows={3} placeholder="Add an optional note for security" className={`${fieldClass} h-auto py-3`} /></Field>
           {error ? (
             <p className="rounded-lg border border-danger/20 bg-[#FEF2F2] px-4 py-3 text-sm font-semibold text-danger">
               {error}

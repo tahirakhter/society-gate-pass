@@ -89,14 +89,16 @@ export class EntryLogsService {
       return {};
     }
 
-    const start = new Date(date);
-    if (Number.isNaN(start.getTime())) {
+    // Interpret the calendar day in Pakistan time (UTC+05:00, no DST) so the
+    // boundaries don't depend on the server's timezone and match the AI
+    // analytics day boundaries.
+    const day = date.slice(0, 10);
+    const start = new Date(`${day}T00:00:00.000+05:00`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(start.getTime())) {
       throw new BadRequestException('Date filter must be a valid date');
     }
 
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 1);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
     return {
       scannedAt: {

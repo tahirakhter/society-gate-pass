@@ -1137,7 +1137,13 @@ export class AiService {
 
       const tokens = await this.prisma.visitToken.findMany({
         where: {
-          ...(user.role === UserRole.ADMIN ? {} : { createdBy: user.id }),
+          // Same owner scope as VisitTokensService.getMyTokens: passes the
+          // owner created plus any pass on a house they currently own.
+          ...(user.role === UserRole.ADMIN
+            ? {}
+            : {
+                OR: [{ createdBy: user.id }, { house: { ownerId: user.id } }],
+              }),
           ...(houseId ? { houseId } : {}),
           ...(filters.visitorName || filters.cnic
             ? {
@@ -1154,25 +1160,29 @@ export class AiService {
                 },
               }
             : {}),
-          ...(effectiveFilters.fromDate || effectiveFilters.toDate
-            ? {
-                expiresAt: {
-                  ...(effectiveFilters.fromDate
-                    ? { gte: this.toStartOfDay(effectiveFilters.fromDate) }
-                    : {}),
-                  ...(effectiveFilters.toDate
-                    ? { lte: this.toEndOfDay(effectiveFilters.toDate) }
-                    : {}),
-                },
-              }
-            : {}),
-          ...(effectiveFilters.notExpiredOnly
-            ? {
-                expiresAt: {
-                  gte: new Date(),
-                },
-              }
-            : {}),
+          // Date range and "not expired" both constrain expiresAt, so combine
+          // them with AND instead of letting one spread overwrite the other.
+          AND: [
+            ...(effectiveFilters.fromDate || effectiveFilters.toDate
+              ? [
+                  {
+                    expiresAt: {
+                      ...(effectiveFilters.fromDate
+                        ? {
+                            gte: this.toStartOfDay(effectiveFilters.fromDate),
+                          }
+                        : {}),
+                      ...(effectiveFilters.toDate
+                        ? { lte: this.toEndOfDay(effectiveFilters.toDate) }
+                        : {}),
+                    },
+                  },
+                ]
+              : []),
+            ...(effectiveFilters.notExpiredOnly
+              ? [{ expiresAt: { gte: new Date() } }]
+              : []),
+          ],
         },
         include: {
           visitor: true,

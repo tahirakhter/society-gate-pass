@@ -208,11 +208,46 @@ export class VisitTokensService {
       };
     }
 
-    const updatedToken = await this.prisma.visitToken.update({
-      where: { id: visitToken.id },
+    // Claim the token atomically: only one concurrent scan can flip isUsed
+    // from false to true, so a single-use pass can never be approved twice.
+    const claim = await this.prisma.visitToken.updateMany({
+      where: {
+        id: visitToken.id,
+        isUsed: false,
+        isActive: true,
+        expiresAt: { gt: new Date() },
+      },
       data: {
         isUsed: true,
       },
+    });
+
+    if (claim.count !== 1) {
+      const latestToken = await this.prisma.visitToken.findUniqueOrThrow({
+        where: { id: visitToken.id },
+        include: this.defaultInclude,
+      });
+      const raceFailureReason =
+        this.getValidationFailureReason(latestToken) ??
+        'Token has already been used';
+
+      await this.createEntryLog({
+        scannedBy,
+        tokenId: latestToken.id,
+        scanStatus: ScanStatus.FAILED,
+        failureReason: raceFailureReason,
+      });
+
+      return {
+        approved: false,
+        status: 'FAILED' as const,
+        failureReason: raceFailureReason,
+        token: this.serializeVisitToken(latestToken),
+      };
+    }
+
+    const updatedToken = await this.prisma.visitToken.findUniqueOrThrow({
+      where: { id: visitToken.id },
       include: this.defaultInclude,
     });
 
@@ -253,15 +288,6 @@ export class VisitTokensService {
 
     this.assertCanDeactivate(visitToken);
 
-    if (!visitToken.isActive) {
-      return this.serializeVisitToken(
-        await this.prisma.visitToken.findUniqueOrThrow({
-          where: { id: tokenId },
-          include: this.defaultInclude,
-        }),
-      );
-    }
-
     const updatedToken = await this.markTokenRevoked(tokenId);
 
     return this.serializeVisitToken(updatedToken);
@@ -278,10 +304,6 @@ export class VisitTokensService {
     }
 
     this.assertCanDeactivate(visitToken);
-
-    if (!visitToken.isActive) {
-      return this.serializeVisitToken(visitToken);
-    }
 
     const updatedToken = await this.markTokenRevoked(tokenId);
 

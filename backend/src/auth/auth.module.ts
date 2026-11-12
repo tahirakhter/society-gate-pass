@@ -6,6 +6,7 @@ import { StringValue } from 'ms';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { getJwtSecret } from './jwt-secret';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
@@ -17,8 +18,7 @@ import { PrismaModule } from '../prisma/prisma.module';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        secret:
-          configService.get<string>('JWT_SECRET') || 'development-only-secret',
+        secret: getJwtSecret(configService),
         signOptions: {
           expiresIn: (configService.get<string>('JWT_ACCESS_TOKEN_EXPIRY') ||
             '15m') as StringValue,

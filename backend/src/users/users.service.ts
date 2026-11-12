@@ -4,6 +4,7 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
 import * as bcrypt from 'bcrypt';
@@ -108,6 +109,12 @@ export class UsersService {
     // Check if user exists
     await this.findById(id);
 
+    const losesOwnerRole =
+      updateUserDto.role !== undefined && updateUserDto.role !== UserRole.OWNER;
+    if (losesOwnerRole || updateUserDto.isActive === false) {
+      await this.assertOwnsNoHouses(id);
+    }
+
     // If changing email, check for conflicts
     if (updateUserDto.email) {
       const existingUser = await this.prisma.user.findUnique({
@@ -138,6 +145,7 @@ export class UsersService {
 
   async deactivateUser(id: string) {
     await this.findById(id);
+    await this.assertOwnsNoHouses(id);
 
     return this.prisma.user.update({
       where: { id },
@@ -196,21 +204,32 @@ export class UsersService {
     // Check if user exists
     await this.findById(id);
 
-    // Check if user has houses
-    const housesCount = await this.prisma.house.count({
-      where: { ownerId: id },
-    });
-
-    if (housesCount > 0) {
-      throw new BadRequestException(
-        'Cannot delete user with assigned houses. Please transfer or delete houses first.',
-      );
-    }
+    await this.assertOwnsNoHouses(
+      id,
+      'Cannot delete user with assigned houses. Please transfer or delete houses first.',
+    );
 
     await this.prisma.user.delete({
       where: { id },
     });
 
     return { message: 'User deleted successfully' };
+  }
+
+  /**
+   * Houses must always point to an active OWNER. Block any change that would
+   * leave a house owned by a deactivated, deleted, or non-OWNER user.
+   */
+  private async assertOwnsNoHouses(
+    id: string,
+    message = 'This user still owns houses. Transfer the houses to another owner first.',
+  ) {
+    const housesCount = await this.prisma.house.count({
+      where: { ownerId: id },
+    });
+
+    if (housesCount > 0) {
+      throw new BadRequestException(message);
+    }
   }
 }

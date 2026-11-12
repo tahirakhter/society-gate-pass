@@ -3,14 +3,15 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { FormEvent, Suspense, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth-provider";
+import { getSafeRedirect } from "@/lib/safe-redirect";
 
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = useMemo(() => searchParams.get("redirect") || "/dashboard", [searchParams]);
+  const redirectTo = useMemo(() => getSafeRedirect(searchParams.get("redirect")), [searchParams]);
   const { login } = useAuth();
-  const [email, setEmail] = useState("admin@societygatepass.com");
-  const [password, setPassword] = useState("Admin@123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
